@@ -1,0 +1,767 @@
+openapi: 3.0.0
+servers:
+  - url: 'https://api.cncinsight.com/v1'
+    description: Production server
+  - url: 'https://virtserver.swaggerhub.com/MATTHEWDYKEMA/CNC-Insight-API/1.0.0'
+    description: SwaggerHub API Auto Mocking
+
+info:
+  version: "1.0.0"
+  title: CNC Insight Complete API
+  description: |
+    Enterprise-grade API for CNC machine monitoring, control, and analytics.
+    Supports comprehensive machine data collection, toolpath management, and real-time monitoring.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/token:
+    post:
+      summary: Get access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                grant_type:
+                  type: string
+                  enum: [client_credentials, password]
+                client_id:
+                  type: string
+                client_secret:
+                  type: string
+      responses:
+        '200':
+          description: Token generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                    enum: [bearer]
+                  expires_in:
+                    type: integer
+
+  /machines:
+    get:
+      summary: List all CNC machines
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, idle, maintenance, error, offline]
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [mill, lathe, router, grinder]
+        - name: capabilities
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [3axis, 4axis, 5axis, multiSpindle]
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    name:
+                      type: string
+                    model:
+                      type: string
+                    manufacturer:
+                      type: string
+                    type:
+                      type: string
+                    capabilities:
+                      type: array
+                      items:
+                        type: string
+                    status:
+                      type: string
+                      enum: [active, idle, maintenance, error]
+
+    post:
+      summary: Register new machine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - model
+                - manufacturer
+              properties:
+                name:
+                  type: string
+                model:
+                  type: string
+                manufacturer:
+                  type: string
+                type:
+                  type: string
+                  enum: [mill, lathe, router, grinder]
+                capabilities:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Machine registered successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /machines/{machineId}/coordinates:
+    get:
+      summary: Get real-time machine coordinates
+      parameters:
+        - name: machineId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: coordinate_system
+          in: query
+          schema:
+            type: string
+            enum: [machine, work, part]
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  machine:
+                    type: object
+                    properties:
+                      x:
+                        type: number
+                      y:
+                        type: number
+                      z:
+                        type: number
+                      a:
+                        type: number
+                      b:
+                        type: number
+                      c:
+                        type: number
+                  work:
+                    type: object
+                    properties:
+                      x:
+                        type: number
+                      y:
+                        type: number
+                      z:
+                        type: number
+                  workOffset:
+                    type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /machines/{machineId}/control:
+    post:
+      summary: Send control commands to machine
+      parameters:
+        - name: machineId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                command:
+                  type: string
+                  enum: [start, stop, pause, resume, reset, home, tool_change]
+                parameters:
+                  type: object
+                  properties:
+                    feedrate_override:
+                      type: number
+                      minimum: 0
+                      maximum: 200
+                    spindle_override:
+                      type: number
+                      minimum: 0
+                      maximum: 200
+                    tool_number:
+                      type: integer
+                    coolant:
+                      type: string
+                      enum: [flood, mist, off]
+      responses:
+        '200':
+          description: Command executed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [success, pending]
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Machine state conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /machines/{machineId}/metrics:
+    get:
+      summary: Get comprehensive machine metrics
+      parameters:
+        - name: machineId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: metrics
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - spindle_load
+                - axis_load
+                - power_consumption
+                - temperature
+                - vibration
+                - toolwear
+                - material_removal
+                - accuracy
+                - surface_finish
+                - environmental
+        - name: interval
+          in: query
+          schema:
+            type: string
+            enum: [realtime, 1min, 5min, 15min, 1hour]
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  machine_id:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+                  metrics:
+                    type: object
+                    properties:
+                      spindle:
+                        type: object
+                        properties:
+                          load:
+                            type: number
+                          speed:
+                            type: number
+                          temperature:
+                            type: number
+                          vibration:
+                            type: number
+                      axes:
+                        type: object
+                        properties:
+                          x:
+                            type: object
+                            properties:
+                              load:
+                                type: number
+                              position_error:
+                                type: number
+                          y:
+                            type: object
+                            properties:
+                              load:
+                                type: number
+                              position_error:
+                                type: number
+                          z:
+                            type: object
+                            properties:
+                              load:
+                                type: number
+                              position_error:
+                                type: number
+                      power:
+                        type: object
+                        properties:
+                          total:
+                            type: number
+                          spindle:
+                            type: number
+                          axes:
+                            type: number
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /machines/{machineId}/diagnostics:
+    post:
+      summary: Run machine diagnostics
+      parameters:
+        - name: machineId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tests:
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - spindle
+                      - axes
+                      - tool_changer
+                      - coolant
+                      - hydraulics
+                      - pneumatics
+                      - electrical
+                      - mechanical
+                level:
+                  type: string
+                  enum: [basic, comprehensive, advanced]
+      responses:
+        '200':
+          description: Diagnostics completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  machine_id:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        test:
+                          type: string
+                        status:
+                          type: string
+                          enum: [pass, fail, warning]
+                        details:
+                          type: string
+                        recommendations:
+                          type: array
+                          items:
+                            type: string
+
+  /toolpaths:
+    get:
+      summary: List all toolpaths
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [contour, pocket, drill, surfacing, multiaxis]
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    type:
+                      type: string
+                    parameters:
+                      type: object
+                      properties:
+                        feedRate:
+                          type: number
+                        spindleSpeed:
+                          type: number
+                        stepover:
+                          type: number
+                        stepdown:
+                          type: number
+
+    post:
+      summary: Create new toolpath
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                  enum: [contour, pocket, drill, surfacing, multiaxis]
+                parameters:
+                  type: object
+                  properties:
+                    feedRate:
+                      type: number
+                    spindleSpeed:
+                      type: number
+                    stepover:
+                      type: number
+                    stepdown:
+                      type: number
+      responses:
+        '201':
+          description: Toolpath created
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /tool-library:
+    get:
+      summary: Get tool library
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    number:
+                      type: integer
+                    type:
+                      type: string
+                    diameter:
+                      type: number
+                    length:
+                      type: number
+                    flutes:
+                      type: integer
+                    material:
+                      type: string
+                    totalUsage:
+                      type: number
+                    remainingLife:
+                      type: number
+
+    post:
+      summary: Add tool to library
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - number
+                - type
+                - diameter
+                - length
+              properties:
+                number:
+                  type: integer
+                type:
+                  type: string
+                diameter:
+                  type: number
+                length:
+                  type: number
+                flutes:
+                  type: integer
+                material:
+                  type: string
+      responses:
+        '201':
+          description: Tool added
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /programs:
+    get:
+      summary: List all CNC programs
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    status:
+                      type: string
+                      enum: [draft, active, completed]
+                    toolpaths:
+                      type: array
+                      items:
+                        type: string
+                    estimatedTime:
+                      type: number
+
+    post:
+      summary: Create new program
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - gCode
+              properties:
+                name:
+                  type: string
+                gCode:
+                  type: string
+                toolpaths:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Program created
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /analytics/production:
+    get:
+      summary: Get production analytics
+      parameters:
+        - name: timeframe
+          in: query
+          schema:
+            type: string
+            enum: [daily, weekly, monthly, yearly]
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  period:
+                    type: string
+                  total_runtime:
+                    type: number
+                  total_parts:
+                    type: number
+                  efficiency:
+                    type: number
+                  quality_rate:
+                    type: number
+                  machine_utilization:
+                    type: number
+                  energy_consumption:
+                    type: number
+                  material_usage:
+                    type: number
+                  tool_changes:
+                    type: number
+                  maintenance_hours:
+                    type: number
+
+components:
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            validation:
+              value:
+                code: VALIDATION_ERROR
+                message: "Invalid request parameters"
+                details:
+                  field: "feedrate_override"
+                  error: "Must be between 0 and 200"
+                timestamp: "2024-12-26T10:00:00Z"
+                request_id: "req_abc123"
+            invalidFormat:
+              value:
+                code: INVALID_FORMAT
+                message: "Invalid data format"
+                details:
+                  field: "gCode"
+                  error: "Invalid G-code syntax"
+                timestamp: "2024-12-26T10:01:00Z"
+                request_id: "req_abc124"
+            missingField:
+              value:
+                code: MISSING_FIELD
+                message: "Required field missing"
+                details:
+                  field: "tool_number"
+                  error: "Tool number is required"
+                timestamp: "2024-12-26T10:02:00Z"
+                request_id: "req_abc125"
+
+    Forbidden:
+      description: Permission denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            unauthorized:
+              value:
+                code: PERMISSION_DENIED
+                message: "Insufficient permissions"
+                details:
+                  required_permission: "machine:control"
+                  user_role: "operator"
+                timestamp: "2024-12-26T10:03:00Z"
+                request_id: "req_abc126"
+            tokenExpired:
+              value:
+                code: TOKEN_EXPIRED
+                message: "Authentication token has expired"
+                details:
+                  expired_at: "2024-12-26T09:00:00Z"
+                timestamp: "2024-12-26T10:04:00Z"
+                request_id: "req_abc127"
+            invalidScope:
+              value:
+                code: INVALID_SCOPE
+                message: "Token scope insufficient"
+                details:
+                  required_scope: "write"
+                  provided_scope: "read"
+                timestamp: "2024-12-26T10:05:00Z"
+                request_id: "req_abc128"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            machineNotFound:
+              value:
+                code: MACHINE_NOT_FOUND
+                message: "Machine not found"
+                details:
+                  machine_id: "123e4567-e89b-12d3-a456-426614174000"
+                timestamp: "2024-12-26T10:06:00Z"
+                request_id: "req_abc129"
+            toolpathNotFound:
+              value:
+                code: TOOLPATH_NOT_FOUND
+                message: "Toolpath not found"
+                details:
+                  toolpath_id: "123e4567-e89b-12d3-a456-426614174001"
+                timestamp: "2024-12-26T10:07:00Z"
+                request_id: "req_abc130"
+            programNotFound:
+              value:
+                code: PROGRAM_NOT_FOUND
+                message: "Program not found"
+                details:
+                  program_id: "123e4567-e89b-12d3-a456-426614174002"
+                timestamp: "2024-12-26T10:08:00Z"
+                request_id: "req_abc131"
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Authentication using JWT bearer token.
+        
+        Token can be obtained from the /auth/token endpoint.
+        Required scopes:
+        - read: Access to read operations
+        - write: Access to write operations
+        - admin: Access to administrative operations
+        
+        Example:
+        Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
