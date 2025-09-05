@@ -1,0 +1,352 @@
+CNC Insight MTConnect API Documentation
+
+Base URL
+
+https://gqiqcwriqmbtnosbrlzk.supabase.co/functions/v1/api-gateway
+
+Authentication
+All endpoints require authentication with an API key. Provide it in one of the following headers:
+
+http
+Authorization: Bearer YOUR_API_KEY
+
+or
+
+X-API-Key: YOUR_API_KEY
+
+
+---
+
+Subscription Tiers & Rate Limits
+
+Tier	Price/Month	Rate Limit (per min)	Rate Limit (per hr)	Access Level
+
+Basic	$0.00	60	1,000	Read-only (devices & streams)
+Premium	$29.99	300	15,000	Read + Write telemetry
+Enterprise	$99.99	1,000	50,000	Full admin + analytics
+
+
+
+---
+
+API Scopes & Permissions
+
+Scope	Description	Available Tiers
+
+read:devices	Access device information	Basic+
+read:streams	Access streaming machine data	Basic+
+read:telemetry	Read telemetry data	Basic+
+write:telemetry	Send telemetry data	Premium+
+read:analytics	Access analytics data	Premium+
+admin:manage	Full admin control	Enterprise
+
+
+
+---
+
+API Endpoints
+
+1. Devices API
+
+List All Devices
+
+Endpoint: GET /devices
+Scope: read:devices
+
+Returns all CNC devices linked to your company account.
+
+Response Example
+
+{
+  "data": {
+    "devices": [
+      {
+        "device_id": "uuid",
+        "device_name": "Machine Name",
+        "device_type": "CNC Mill",
+        "manufacturer": "Haas",
+        "model": "VF-2",
+        "status": "running",
+        "mtconnect_url": "http://192.168.1.100:5000",
+        "mtconnect_device_name": "VMC-01",
+        "telemetry_points_24h": 1440,
+        "last_communication": "2025-01-15T10:30:00Z",
+        "current_status": "running",
+        "created_at": "2025-01-01T00:00:00Z"
+      }
+    ],
+    "total": 5,
+    "company_id": "your-company-uuid"
+  },
+  "status": 200
+}
+
+
+---
+
+Get Device Details
+
+Endpoint: GET /devices/{device_id}
+Scope: read:devices
+
+Returns full details and recent telemetry for a single machine.
+
+Response Example
+
+{
+  "data": {
+    "device": {
+      "device_id": "uuid",
+      "device_name": "Machine Name",
+      "device_type": "CNC Mill",
+      "manufacturer": "Haas",
+      "model": "VF-2",
+      "status": "running",
+      "mtconnect_url": "http://192.168.1.100:5000",
+      "mtconnect_device_name": "VMC-01",
+      "utilization": 85.5,
+      "efficiency": 92.3,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-15T10:30:00Z"
+    },
+    "telemetry": [
+      {
+        "id": "uuid",
+        "timestamp": "2025-01-15T10:30:00Z",
+        "temperature": 45.2,
+        "vibration": 0.15,
+        "power_consumption": 12.5,
+        "spindle_speed": 2500,
+        "operation_status": "running"
+      }
+    ],
+    "statistics": {
+      "total_data_points": 1440,
+      "avg_temperature": 44.8,
+      "avg_vibration": 0.12,
+      "avg_power_consumption": 13.2,
+      "avg_spindle_speed": 2450,
+      "uptime_percentage": 94.5
+    }
+  },
+  "status": 200
+}
+
+
+---
+
+2. Streams API
+
+Get Live Streams
+
+Endpoint: GET /streams
+Scope: read:streams
+
+Fetch real-time MTConnect machine streams.
+
+Response Example
+
+{
+  "data": {
+    "streams": [
+      {
+        "machine_id": "uuid",
+        "machine_name": "VMC-01",
+        "status": "running",
+        "utilization": 85.5,
+        "efficiency": 92.3,
+        "mtconnect_url": "http://192.168.1.100:5000",
+        "device_name": "VMC-01",
+        "latest_data": {
+          "timestamp": "2025-01-15T10:30:00Z",
+          "temperature": 45.2,
+          "vibration": 0.15,
+          "power_consumption": 12.5,
+          "spindle_speed": 2500,
+          "axis_positions": {
+            "x": 123.45,
+            "y": 67.89,
+            "z": -12.34
+          }
+        }
+      }
+    ],
+    "total": 3,
+    "subscription_tier": "premium",
+    "company_id": "your-company-uuid"
+  },
+  "status": 200
+}
+
+
+---
+
+3. Telemetry API
+
+Get Telemetry Data
+
+Endpoint: GET /telemetry
+Scope: read:telemetry
+
+Retrieve historical telemetry with optional filters.
+
+Query Parameters:
+
+machine_id (uuid, optional)
+
+start_date (ISO 8601, optional)
+
+end_date (ISO 8601, optional)
+
+limit (int, default 100, max 1000)
+
+
+Response Example
+
+{
+  "data": {
+    "telemetry": [
+      {
+        "id": "uuid",
+        "machine_id": "uuid",
+        "machine_name": "VMC-01",
+        "timestamp": "2025-01-15T10:30:00Z",
+        "temperature": 45.2,
+        "vibration": 0.15,
+        "power_consumption": 12.5,
+        "spindle_speed": 2500,
+        "feed_rate": 150.0,
+        "axis_positions": {
+          "x": 123.45,
+          "y": 67.89,
+          "z": -12.34
+        },
+        "operation_status": "running",
+        "program_number": "O1234",
+        "current_tool": 5,
+        "quality_score": 95.2
+      }
+    ],
+    "total": 500,
+    "filters": {
+      "machine_id": "uuid",
+      "start_date": "2025-01-01T00:00:00Z",
+      "limit": 500
+    }
+  },
+  "status": 200
+}
+
+
+---
+
+Post Telemetry Data
+
+Endpoint: POST /telemetry
+Scope: write:telemetry
+Tier Required: Premium+
+
+Submit new telemetry data for a CNC machine.
+
+Request Body Example
+
+{
+  "machine_id": "uuid",
+  "timestamp": "2025-01-15T10:30:00Z",
+  "temperature": 45.2,
+  "vibration": 0.15,
+  "power_consumption": 12.5,
+  "spindle_speed": 2500,
+  "feed_rate": 150.0,
+  "axis_positions": {
+    "x": 123.45,
+    "y": 67.89,
+    "z": -12.34
+  },
+  "operation_status": "running",
+  "program_number": "O1234",
+  "current_tool": 5,
+  "quality_score": 95.2
+}
+
+Response Example
+
+{
+  "data": {
+    "message": "Telemetry data recorded successfully",
+    "telemetry_id": "uuid",
+    "machine_name": "VMC-01",
+    "timestamp": "2025-01-15T10:30:00Z"
+  },
+  "status": 201
+}
+
+
+---
+
+Error Handling
+
+All endpoints return standardized error objects.
+
+{
+  "error": "Error message",
+  "status": 400,
+  "metadata": {
+    "requestId": "uuid",
+    "timestamp": "2025-01-15T10:30:00Z"
+  }
+}
+
+Common HTTP Codes
+
+200 Success
+
+201 Created
+
+400 Bad Request
+
+401 Unauthorized
+
+403 Forbidden
+
+404 Not Found
+
+405 Method Not Allowed
+
+429 Rate Limit Exceeded
+
+500 Internal Server Error
+
+
+
+---
+
+Rate Limiting
+
+If you exceed limits:
+
+{
+  "error": "Rate limit exceeded",
+  "status": 429,
+  "retry_after": 60
+}
+
+
+---
+
+Data Types & Validation
+
+Field	Type	Range/Format
+
+temperature	Number	-100 → 500 °C
+vibration	Number	0 → 10 mm/s
+power_consumption	Number	0 → 1000 kW
+spindle_speed	Number	0 → 50,000 RPM
+feed_rate	Number	≥ 0 mm/min
+quality_score	Number	0 → 100
+axis_positions	Object	{x, y, z} floats
+timestamp	String	ISO 8601 date-time
+operation_status	String	e.g. running, idle
+program_number	String	Alphanumeric
+
+
